@@ -140,7 +140,7 @@ void Raffle()
     return;
   }
 
-  //randomSeed(analogRead(A0));
+ 
   value = random(currentMin, currentMax + 1);
 
   currentState = GENERATOR_STARTED;
@@ -335,6 +335,7 @@ void setup()
   MFS.initialize(&Timer1); // initializa a biblioteca Multi função
   GeneratorStopped();
   MFS.writeLeds(LED_ALL, OFF);
+  randomSeed(analogRead(A0));
 }
 
 void loop()
