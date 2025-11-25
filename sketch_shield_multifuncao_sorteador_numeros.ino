@@ -39,7 +39,8 @@ enum AnimationModeValues
 
 AnimationModeValues currentAnim = ANIMATION_STOPPED;
 GeneratorModeValues currentState = GENERATOR_STOPPED;
-RangeStatusValues rangeFlag = RANGE_SET;
+RangeStatusValues rangeMaxFlag = RANGE_NOT_SET;
+RangeStatusValues rangeMinFlag = RANGE_NOT_SET;
 ledModeValues currentLedMode = LED_ALL_OFF;
 int currentMax = RANGE_MAX_NUMBER;
 int currentMin = RANGE_MIN_NUMBER;
@@ -93,6 +94,16 @@ void DecrementRange(int range) {
     range = RANGE_MIN_NUMBER;
 }
 
+void SetMaxRange() {
+  rangeMaxFlag = RANGE_SET;
+  MFS.writeLeds(LED_1, ON);
+}
+
+void SetMinRange() {
+  rangeMinFlag = RANGE_SET;
+  MFS.writeLeds(LED_2, ON);
+}
+
 void GeneratorStopped()
 {
   currentState = GENERATOR_STOPPED;
@@ -116,7 +127,7 @@ void Interrupt()
 
 void Raffle()
 {
-  if (rangeFlag != RANGE_SET) {
+  if (rangeMaxFlag != RANGE_SET || rangeMinFlag != RANGE_SET) {
     return;
   }
 
@@ -177,8 +188,8 @@ void shortAction1()
   {
     case GENERATOR_STOPPED: Raffle(); break;
     case GENERATOR_STARTED: Interrupt(); break;
-    case SETTING_RANGE_MAX_NUM_STARTED: GeneratorStopped(); break;
-    case SETTING_RANGE_MIN_NUM_STARTED: GeneratorStopped(); break;
+    case SETTING_RANGE_MAX_NUM_STARTED: SetMaxRange(); GeneratorStopped(); break;
+    case SETTING_RANGE_MIN_NUM_STARTED: SetMinRange(); GeneratorStopped(); break;
   }
 }
 
@@ -193,7 +204,7 @@ void longAction1()
   }
 }
 
-void botao3(byte buttonAction)
+void button3(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction3(); break;
@@ -202,7 +213,7 @@ void botao3(byte buttonAction)
   }
 }
 
-void botao2(byte buttonAction)
+void button2(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction2(); break;
@@ -211,7 +222,7 @@ void botao2(byte buttonAction)
   }
 }
 
-void botao1(byte buttonAction)
+void button1(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction1(); break;
@@ -220,7 +231,7 @@ void botao1(byte buttonAction)
   }
 }
 
-void botoes()
+void check_buttons()
 {
   byte btn = MFS.getButton();                            // verifica o status dos botões
  
@@ -233,9 +244,9 @@ void botoes()
     Serial.write(buttonNumber + '0');                    // imprime o caractere da tabela ASCII correspondente ao código fornecido
     Serial.print("_");                                   // imprime caracttere sublinhado
     switch (buttonNumber) {
-      case 1: botao1(buttonAction); break;
-      case 2: botao2(buttonAction); break;
-      case 3: botao3(buttonAction); break;
+      case 1: button1(buttonAction); break;
+      case 2: button2(buttonAction); break;
+      case 3: button3(buttonAction); break;
       default: return;
     }
   }
@@ -331,6 +342,6 @@ void setup()
 
 void loop()
 {
-  botoes();
+  check_buttons();
   play_animation();
 }
