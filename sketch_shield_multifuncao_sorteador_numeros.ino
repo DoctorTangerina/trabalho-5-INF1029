@@ -46,7 +46,6 @@ int currentMax = RANGE_MAX_NUMBER;
 int currentMin = RANGE_MIN_NUMBER;
 int countup = 0;
 int value = 0;
-byte tenths = 0;
 
 void AnimateLeds()
 {
@@ -78,20 +77,30 @@ void AnimateLeds()
   }
 }
 
-void DisplayRange(int range) {
+void DisplayRange(int range, bool blink) {
   MFS.write(range);
+  if (blink)
+    MFS.blinkDisplay(DIGIT_ALL, ON);
+  else
+    MFS.blinkDisplay(DIGIT_ALL, OFF);
 }
 
-void IncrementRange(int range) {
+void IncrementRange(int &range) {
   range = range + 100;
   if (range > RANGE_MAX_NUMBER)
     range = RANGE_MAX_NUMBER;
+  if (range > currentMax)
+    range = range - 100;
+  MFS.write(range);
 }
 
-void DecrementRange(int range) {
+void DecrementRange(int &range) {
   range = range - 100;
   if (range < RANGE_MIN_NUMBER)
     range = RANGE_MIN_NUMBER;
+  if (range < currentMin)
+    range = range + 100;
+  MFS.write(range);
 }
 
 void SetMaxRange() {
@@ -108,7 +117,7 @@ void GeneratorStopped()
 {
   currentState = GENERATOR_STOPPED;
   MFS.write("off");
-  MFS.writeLeds(LED_ALL, OFF);
+  MFS.blinkDisplay(DIGIT_ALL, OFF);
 }
 
 void Buzzer(byte bipLength, byte silenceLength, byte bipLoops, byte totalLoops, byte waitBetweenLoops)
@@ -131,7 +140,7 @@ void Raffle()
     return;
   }
 
-  randomSeed(analogRead(A0));
+  //randomSeed(analogRead(A0));
   value = random(currentMin, currentMax + 1);
 
   currentState = GENERATOR_STARTED;
@@ -142,7 +151,7 @@ void shortAction3()
 {
   switch (currentState)
   {
-    case GENERATOR_STOPPED: DisplayRange(currentMin); break;
+    case GENERATOR_STOPPED: DisplayRange(currentMin, false); break;
     case GENERATOR_STARTED: Serial.println("Not implemented"); break;
     case SETTING_RANGE_MAX_NUM_STARTED: DecrementRange(currentMax); break;
     case SETTING_RANGE_MIN_NUM_STARTED: DecrementRange(currentMin); break;
@@ -153,7 +162,7 @@ void longAction3()
 {
   switch (currentState)
   {
-    case GENERATOR_STOPPED: currentState = SETTING_RANGE_MIN_NUM_STARTED; break;
+    case GENERATOR_STOPPED: DisplayRange(currentMin, true); currentState = SETTING_RANGE_MIN_NUM_STARTED; break;
     case GENERATOR_STARTED: Serial.println("Not implemented"); break;
     case SETTING_RANGE_MAX_NUM_STARTED: DecrementRange(currentMax); break;
     case SETTING_RANGE_MIN_NUM_STARTED: DecrementRange(currentMin); break;
@@ -164,7 +173,7 @@ void shortAction2()
 {
   switch (currentState)
   {
-    case GENERATOR_STOPPED: DisplayRange(currentMax); break;
+    case GENERATOR_STOPPED: DisplayRange(currentMax, false); break;
     case GENERATOR_STARTED: Serial.println("Not implemented"); break;
     case SETTING_RANGE_MAX_NUM_STARTED: IncrementRange(currentMax); break;
     case SETTING_RANGE_MIN_NUM_STARTED: IncrementRange(currentMin); break;
@@ -175,7 +184,7 @@ void longAction2()
 {
   switch (currentState)
   {
-    case GENERATOR_STOPPED: currentState = SETTING_RANGE_MAX_NUM_STARTED; break;
+    case GENERATOR_STOPPED: DisplayRange(currentMax, true); currentState = SETTING_RANGE_MAX_NUM_STARTED; break;
     case GENERATOR_STARTED: Serial.println("Not implemented"); break;
     case SETTING_RANGE_MAX_NUM_STARTED: IncrementRange(currentMax); break;
     case SETTING_RANGE_MIN_NUM_STARTED: IncrementRange(currentMin); break;
@@ -188,8 +197,8 @@ void shortAction1()
   {
     case GENERATOR_STOPPED: Raffle(); break;
     case GENERATOR_STARTED: Interrupt(); break;
-    case SETTING_RANGE_MAX_NUM_STARTED: SetMaxRange(); GeneratorStopped(); break;
-    case SETTING_RANGE_MIN_NUM_STARTED: SetMinRange(); GeneratorStopped(); break;
+    case SETTING_RANGE_MAX_NUM_STARTED: GeneratorStopped(); SetMaxRange(); break;
+    case SETTING_RANGE_MIN_NUM_STARTED: GeneratorStopped(); SetMinRange(); break;
   }
 }
 
@@ -208,7 +217,7 @@ void button3(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction3(); break;
-    case BUTTON_LONG_RELEASE_IND: longAction3(); break;
+    case BUTTON_LONG_PRESSED_IND: longAction3(); break;
     default: return;
   }
 }
@@ -217,7 +226,7 @@ void button2(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction2(); break;
-    case BUTTON_LONG_RELEASE_IND: longAction2(); break;
+    case BUTTON_LONG_PRESSED_IND: longAction2(); break;
     default: return;
   }
 }
@@ -226,7 +235,7 @@ void button1(byte buttonAction)
 {
   switch (buttonAction) {
     case BUTTON_SHORT_RELEASE_IND: shortAction1(); break;
-    case BUTTON_LONG_RELEASE_IND: longAction1(); break;
+    case BUTTON_LONG_PRESSED_IND: longAction1(); break;
     default: return;
   }
 }
@@ -240,9 +249,9 @@ void check_buttons()
     byte buttonNumber = btn & B00111111;                 // AND bit a bit para identificar o botão
     byte buttonAction = btn & B11000000;                 // AND bit a bit para identificar o evento
  
-    Serial.print("BOTAO_");                              // imprime mensagem
-    Serial.write(buttonNumber + '0');                    // imprime o caractere da tabela ASCII correspondente ao código fornecido
-    Serial.print("_");                                   // imprime caracttere sublinhado
+    //Serial.print("BOTAO_");                              // imprime mensagem
+    //Serial.write(buttonNumber + '0');                    // imprime o caractere da tabela ASCII correspondente ao código fornecido
+    //Serial.print("_");                                   // imprime caracttere sublinhado
     switch (buttonNumber) {
       case 1: button1(buttonAction); break;
       case 2: button2(buttonAction); break;
@@ -267,11 +276,7 @@ void play_animation()
     break;
   case ANIMATION_STAGE1:
     MFS.write(countup*1000 + countup*100 + countup*10 + countup);
-    tenths++;
-    if (tenths >= 10) {
-      tenths = 0;
-      countup++;
-    }
+    countup++;
     if (countup > 9) {
       countup = 0;
       currentAnim = ANIMATION_STAGE2;
@@ -279,11 +284,7 @@ void play_animation()
     break;
   case ANIMATION_STAGE2:
     MFS.write(countup*1000 + countup*100 + countup*10 + value % 10);
-    tenths++;
-    if (tenths >= 10) {
-      tenths = 0;
-      countup++;
-    }
+    countup++;
     if (countup > 9) {
       countup = 0;
       currentAnim = ANIMATION_STAGE3;
@@ -291,11 +292,7 @@ void play_animation()
     break;
   case ANIMATION_STAGE3:
     MFS.write(countup*1000 + countup*100 + value % 100);
-    tenths++;
-    if (tenths >= 10) {
-      tenths = 0;
-      countup++;
-    }
+    countup++;
     if (countup > 9) {
       countup = 0;
       currentAnim = ANIMATION_STAGE4;
@@ -303,11 +300,7 @@ void play_animation()
     break;
   case ANIMATION_STAGE4:
     MFS.write(countup*1000 + value % 1000);
-    tenths++;
-    if (tenths >= 10) {
-      tenths = 0;
-      countup++;
-    }
+    countup++;
     if (countup > 9) {
       countup = 0;
       currentAnim = ANIMATION_FINALE;
@@ -324,13 +317,15 @@ void play_animation()
     MFS.write("Intr");
     MFS.writeLeds(LED_ALL, OFF);
     Buzzer(5,5,3,1,0);
-    rangeFlag = RANGE_NOT_SET;
+    rangeMaxFlag = RANGE_NOT_SET;
+    rangeMinFlag = RANGE_NOT_SET;
     currentState = GENERATOR_STOPPED;
     currentAnim = ANIMATION_STOPPED;
     break;
   default:
     break;
   }
+  delay(100);
 }
 
 void setup()
@@ -338,6 +333,8 @@ void setup()
   Serial.begin(9600);
   Timer1.initialize(); // inicializa o Timer 1
   MFS.initialize(&Timer1); // initializa a biblioteca Multi função
+  GeneratorStopped();
+  MFS.writeLeds(LED_ALL, OFF);
 }
 
 void loop()
