@@ -33,6 +33,7 @@ enum AnimationModeValues
   ANIMATION_STAGE2,
   ANIMATION_STAGE3,
   ANIMATION_STAGE4,
+  ANIMATION_FINALE,
   ANIMATION_INTERRUPTED
 };
 
@@ -42,6 +43,39 @@ RangeStatusValues rangeFlag = RANGE_SET;
 ledModeValues currentLedMode = LED_ALL_OFF;
 int currentMax = RANGE_MAX_NUMBER;
 int currentMin = RANGE_MIN_NUMBER;
+int countup = 0;
+int value = 0;
+byte tenths = 0;
+
+void AnimateLeds()
+{
+  switch (currentLedMode)
+  {
+    case LED_ALL_OFF:
+      currentLedMode = LED_1_ON;
+      MFS.writeLeds(LED_1, ON);
+      break;
+    case LED_1_ON:
+      MFS.writeLeds(LED_1, OFF);
+      currentLedMode = LED_2_ON;
+      MFS.writeLeds(LED_2, ON);
+      break;
+    case LED_2_ON:
+      MFS.writeLeds(LED_2, OFF);
+      currentLedMode = LED_3_ON;
+      MFS.writeLeds(LED_3, ON);
+      break;
+    case LED_3_ON:
+      MFS.writeLeds(LED_3, OFF);
+      currentLedMode = LED_4_ON;
+      MFS.writeLeds(LED_4, ON);
+      break;
+    case LED_4_ON:
+      MFS.writeLeds(LED_4, OFF);
+      currentLedMode = LED_ALL_OFF;
+      break;
+  }
+}
 
 void DisplayRange(int range) {
   MFS.write(range);
@@ -58,121 +92,39 @@ void DecrementRange(int range) {
   if (range < RANGE_MIN_NUMBER)
     range = RANGE_MIN_NUMBER;
 }
- 
-void Buzzer()
+
+void GeneratorStopped()
 {
-  // 4 bips curtos, repetidos 3 vezes
-  MFS.beep(5,       // Define um bip de 50 ms (5 unidades de 10ms)
-           5,       // Define um silencio de 50 ms (5 unidades de 10ms)
-           4,       // Define o loop de reprodução do bip (4 vezes)
-           3,       // Define a quantidade de execuções do loop (3 vezes)
-           50);     // Define o tempo de espera entre os loops (500 ms)
+  currentState = GENERATOR_STOPPED;
+  MFS.write("off");
+  MFS.writeLeds(LED_ALL, OFF);
+}
+
+void Buzzer(byte bipLength, byte silenceLength, byte bipLoops, byte totalLoops, byte waitBetweenLoops)
+{
+  MFS.beep(bipLength,           // Define um bip
+           silenceLength,       // Define um silencio
+           bipLoops,            // Define o loop de reprodução do bip
+           totalLoops,          // Define a quantidade de execuções do loop
+           waitBetweenLoops);   // Define o tempo de espera entre os loops
 }
  
 void Interrupt()
 {
-  MFS.write("Intr");
+  currentAnim = ANIMATION_INTERRUPTED;
 }
 
 void Raffle()
 {
-  
-  if (rangeFlag != RANGE_SET) { 
-    MFS.write("----");
-    delay(300);
+  if (rangeFlag != RANGE_SET) {
     return;
   }
 
-  
   randomSeed(analogRead(A0));
-  int value = random(currentMin, currentMax + 1);
+  value = random(currentMin, currentMax + 1);
 
   currentState = GENERATOR_STARTED;
-  
-  MFS.beep(5, 0, 1, 1, 0);
-
-  
-  int digits[4];
-  digits[0] = value % 10;
-  digits[1] = (value / 10) % 10;
-  digits[2] = (value / 100) % 10;
-  digits[3] = (value / 1000) % 10;
-
-  bool interrupted = false;
-
- 
-  for (int stage = 0; stage < 4 && !interrupted; ++stage) {
-    for (int cnt = 9; cnt >= 0 && !interrupted; --cnt) {
-      
-      int toShow = 0;
-      int mul = 1;
-      for (int pos = 0; pos < 4; ++pos) {
-        int out;
-        if (pos < stage) {
-          out = digits[pos];
-        } else {
-          out = cnt;
-        }
-        toShow += out * mul;
-        mul *= 10;
-      }
-      MFS.write(toShow);
-
-      // animacao
-      int ledStep = (9 - cnt) % 5;
-      switch (ledStep) {
-        case 0: MFS.led(1, LOW); MFS.led(2, LOW); MFS.led(3, LOW); MFS.led(4, LOW); break;
-        case 1: MFS.led(1, HIGH); MFS.led(2, LOW); MFS.led(3, LOW); MFS.led(4, LOW); break;
-        case 2: MFS.led(1, LOW); MFS.led(2, HIGH); MFS.led(3, LOW); MFS.led(4, LOW); break;
-        case 3: MFS.led(1, LOW); MFS.led(2, LOW); MFS.led(3, HIGH); MFS.led(4, LOW); break;
-        case 4: MFS.led(1, LOW); MFS.led(2, LOW); MFS.led(3, LOW); MFS.led(4, HIGH); break;
-      }
-
-      unsigned long start = millis();
-      while (millis() - start < 100) {
-        byte btn = MFS.getButton();
-        if (btn) {
-          byte buttonNumber = btn & B00111111;
-          byte buttonAction = btn & B11000000;
-          if (buttonNumber == 1 && buttonAction == BUTTON_SHORT_RELEASE_IND) {
-            interrupted = true;
-            break;
-          }
-        }
-        delay(5);
-      }
-    }
-    
-    int fixedVal = 0; int m = 1;
-    for (int p = 0; p < 4; ++p) {
-      int o = (p <= stage) ? digits[p] : 0;
-      fixedVal += o * m; m *= 10;
-    }
-    MFS.write(fixedVal);
-    delay(50);
-  }
-
-  if (interrupted) {
-    MFS.write("Intr");
-    
-    MFS.led(1, LOW); MFS.led(2, LOW); MFS.led(3, LOW); MFS.led(4, LOW);
-    
-    MFS.beep(5,5,3,1,0);
-    rangeFlag = RANGE_NOT_SET;
-    currentState = GENERATOR_STOPPED;
-    return;
-  }
-
-   MFS.write(value);
-  for (int i = 0; i < 3; ++i) {
-    delay(200);
-    MFS.write("    ");
-    delay(200);
-    MFS.write(value);
-  }
-   MFS.beep(50,50,3,1,0);
-  MFS.led(1, LOW); MFS.led(2, LOW); MFS.led(3, LOW); MFS.led(4, LOW);
-  currentState = GENERATOR_STOPPED;
+  currentAnim = ANIMATION_STARTED;
 }
 
 void shortAction3()
@@ -225,8 +177,8 @@ void shortAction1()
   {
     case GENERATOR_STOPPED: Raffle(); break;
     case GENERATOR_STARTED: Interrupt(); break;
-    case SETTING_RANGE_MAX_NUM_STARTED: currentState = GENERATOR_STOPPED; break;
-    case SETTING_RANGE_MIN_NUM_STARTED: currentState = GENERATOR_STOPPED; break;
+    case SETTING_RANGE_MAX_NUM_STARTED: GeneratorStopped(); break;
+    case SETTING_RANGE_MIN_NUM_STARTED: GeneratorStopped(); break;
   }
 }
 
@@ -280,13 +232,93 @@ void botoes()
     Serial.print("BOTAO_");                              // imprime mensagem
     Serial.write(buttonNumber + '0');                    // imprime o caractere da tabela ASCII correspondente ao código fornecido
     Serial.print("_");                                   // imprime caracttere sublinhado
-    char num = buttonNumber + '0';
-    switch (num) {
-      case '1': botao1(buttonAction); break;
-      case '2': botao2(buttonAction); break;
-      case '3': botao3(buttonAction); break;
+    switch (buttonNumber) {
+      case 1: botao1(buttonAction); break;
+      case 2: botao2(buttonAction); break;
+      case 3: botao3(buttonAction); break;
       default: return;
     }
+  }
+}
+
+void play_animation()
+{
+  if (currentAnim == ANIMATION_STOPPED)
+    return;
+  
+  AnimateLeds();
+  switch (currentAnim)
+  {
+  case ANIMATION_STARTED:
+    Buzzer(5,0,1,1,0);
+    currentAnim = ANIMATION_STAGE1;
+    countup = 0;
+    break;
+  case ANIMATION_STAGE1:
+    MFS.write(countup*1000 + countup*100 + countup*10 + countup);
+    tenths++;
+    if (tenths >= 10) {
+      tenths = 0;
+      countup++;
+    }
+    if (countup > 9) {
+      countup = 0;
+      currentAnim = ANIMATION_STAGE2;
+    }
+    break;
+  case ANIMATION_STAGE2:
+    MFS.write(countup*1000 + countup*100 + countup*10 + value % 10);
+    tenths++;
+    if (tenths >= 10) {
+      tenths = 0;
+      countup++;
+    }
+    if (countup > 9) {
+      countup = 0;
+      currentAnim = ANIMATION_STAGE3;
+    }
+    break;
+  case ANIMATION_STAGE3:
+    MFS.write(countup*1000 + countup*100 + value % 100);
+    tenths++;
+    if (tenths >= 10) {
+      tenths = 0;
+      countup++;
+    }
+    if (countup > 9) {
+      countup = 0;
+      currentAnim = ANIMATION_STAGE4;
+    }
+    break;
+  case ANIMATION_STAGE4:
+    MFS.write(countup*1000 + value % 1000);
+    tenths++;
+    if (tenths >= 10) {
+      tenths = 0;
+      countup++;
+    }
+    if (countup > 9) {
+      countup = 0;
+      currentAnim = ANIMATION_FINALE;
+    }
+    break;
+  case ANIMATION_FINALE:
+    MFS.write(value);
+    MFS.blinkDisplay(DIGIT_ALL, OFF);
+    Buzzer(50,50,3,1,0);
+    currentState = GENERATOR_STOPPED;
+    currentAnim = ANIMATION_STOPPED;
+    break;
+  case ANIMATION_INTERRUPTED:
+    MFS.write("Intr");
+    MFS.writeLeds(LED_ALL, OFF);
+    Buzzer(5,5,3,1,0);
+    rangeFlag = RANGE_NOT_SET;
+    currentState = GENERATOR_STOPPED;
+    currentAnim = ANIMATION_STOPPED;
+    break;
+  default:
+    break;
   }
 }
 
@@ -300,4 +332,5 @@ void setup()
 void loop()
 {
   botoes();
+  play_animation();
 }
